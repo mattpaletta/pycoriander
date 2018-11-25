@@ -1,5 +1,4 @@
 import inspect
-import logging
 import os
 import subprocess
 import tempfile
@@ -7,7 +6,6 @@ from distutils.command.build import build
 from shutil import copytree, copyfile
 
 from setuptools.command.install import install
-from git import Repo
 
 try:
     from setuptools import setup, find_packages
@@ -86,6 +84,7 @@ def get_and_build_coriander():
     should_compile = _does_need_to_compile(tmp_repo)
     if should_compile and not os.path.exists(tmp_repo):
         print("Cloning repo")
+        from git import Repo
         Repo.clone_from("https://github.com/hughperkins/coriander.git", tmp_repo, recursive = True)
     compile_coriander(tmp_repo)
 
@@ -116,7 +115,7 @@ setup(
     url='https://github.com/mattpaletta/pycoriander',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[],
+    install_requires=["gitpython"],
     setup_requires=["gitpython"],
     author="Matthew Paletta",
     author_email="mattpaletta@gmail.com",
