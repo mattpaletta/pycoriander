@@ -15,13 +15,15 @@ except ImportError:
     ez_setup.use_setuptools()
     from setuptools import setup, find_packages
 
-target_resources_dir = os.path.join("coriander/resources/lib")
-
 
 def _get_package_resources():
     x = [os.path.join(dp, f).replace("coriander/", "") for dp, dn, filenames in os.walk(target_resources_dir) for f in filenames]
     print("Got {0} Resources".format(len(x)))
     return x
+
+
+target_resources_dir = os.path.join("coriander/resources/lib")
+package_filenames = _get_package_resources()
 
 
 def _get_target_source_dirs(coriander_dir):
@@ -85,7 +87,9 @@ def compile_coriander(coriander_dir):
 
     print("Monkey patching")
     copyfile(src = "coriander/resources/cocl_env_replace.py", dst = os.path.join(target_resources_dir, "cocl_env.py"))
-    if did_compile:
+
+    global package_filenames
+    if did_compile or len(package_filenames) == 0:
         # Re-grab the new package resources.
         package_filenames = _get_package_resources()
 
@@ -119,8 +123,6 @@ class InstallCommand(install):
             install.do_egg_install(self)  # OR: install.do_egg_install(self)
 
 
-package_filenames = _get_package_resources()
-
 # Requires cmake
 setup(
     name="pycoriander",
@@ -134,6 +136,7 @@ setup(
     author_email="mattpaletta@gmail.com",
     description="Python bindings for coriander",
     license="BSD",
+    zip_safe=True,
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',

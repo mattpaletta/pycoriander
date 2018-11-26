@@ -184,4 +184,4 @@ tags
 # Persistent undo
 [._]*.un~
 
-coriander/resources/bin/
+coriander/resources/lib/

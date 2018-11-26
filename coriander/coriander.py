@@ -4,10 +4,19 @@ import tempfile
 from difflib import SequenceMatcher
 import pyopencl as cl
 
-from coriander.resources.cocl_env_replace import COCL_PATH, COCL_BIN, COCL_LIB
+from coriander.resources.cocl_env_replace import COCL_PATH, COCL_BIN, COCL_LIB, COCL_IR_TO_CL, CLANG_HOME, \
+    COCL_CMAKE_DIR, COCL_INCLUDE
+
+try:
+    import pycuda.driver as cuda
+    cuda_available = True
+except ImportError:
+    cuda_available = False
 
 
-def convert_cu_to_cl(context, cu_filepath, kernelname, num_args):
+# TODO:// If cuda is available, return the cuda kernel, otherwise, compile to opencl and return that.
+
+def cu_to_cl(context, cu_filepath, kernelname, num_args):
     ll_sourcecode = _cu_to_ll(cu_filepath)
 
     # This is the name of the function in the IR.
@@ -40,8 +49,19 @@ def convert_cu_to_cl(context, cu_filepath, kernelname, num_args):
 
 def _get_cocl_path():
     env = os.environ
+    # export CLANG_HOME=/tmp/coriander/release/soft/llvm-4.0
+    # export COCL_PATH=/tmp/coriander/release/bin/cocl.py
+    # export COCL_CMAKE_DIR=/tmp/coriander/cmake
+    # export COCL_BIN=/tmp/coriander/release/bin
+    # export COCL_LIB=/tmp/coriander/release/lib
+    # export COCL_INCLUDE=/tmp/coriander/release/include
+    # export PYTHON27_PATH=/usr/local/bin/python2
+    env["CLANG_HOME"] = CLANG_HOME
+    env['COCL_PATH'] = COCL_PATH
+    # env['COCL_CMAKE_DIR'] = COCL_CMAKE_DIR
     env['COCL_BIN'] = COCL_BIN
     env['COCL_LIB'] = COCL_LIB
+    env['COCL_INCLUDE'] = COCL_INCLUDE
     return COCL_PATH, env
 
 
@@ -54,7 +74,7 @@ def _cu_to_ll(cu_source_file):
     device_ll = filename + "-device.ll"
 
     _run_process([
-        'bash',
+        'python2',
         cocl_path,
         '-c',
         cu_source_file,
@@ -80,7 +100,7 @@ def _cu_to_cl(cu_source_file, kernelName, num_clmems):
     device_cl = filename + "-device.cl"
 
     _run_process([
-        'bash',
+        'python2',
         cocl_path,
         '-c',
         cu_source_file,
@@ -89,7 +109,7 @@ def _cu_to_cl(cu_source_file, kernelName, num_clmems):
     ], env = env)
 
     _run_process([
-        '/tmp/coriander/build/ir-to-opencl',
+        COCL_IR_TO_CL,
         '--inputfile', device_ll,
         '--outputfile', device_cl,
         '--kernelname', kernelName,
@@ -119,6 +139,7 @@ def _run_process(cmdline_list, cwd = None, env = None):
     fout.close()
     with open('/tmp/pout.txt', 'r') as f:
         output = f.read()
-    # print(output)
-    assert res.returncode == 0
+    if res.returncode != 0:
+        print(output)
+        exit(1)
     return output
