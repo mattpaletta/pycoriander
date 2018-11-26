@@ -18,6 +18,12 @@ except ImportError:
 target_resources_dir = os.path.join("coriander/resources/lib")
 
 
+def _get_package_resources():
+    x = [os.path.join(dp, f).replace("coriander/", "") for dp, dn, filenames in os.walk(target_resources_dir) for f in filenames]
+    print("Got {0} Resources".format(len(x)))
+    return x
+
+
 def _get_target_source_dirs(coriander_dir):
     coriander_build_dir = os.path.join(coriander_dir, "release")
 
@@ -49,16 +55,19 @@ def _does_need_to_compile(coriander_dir):
 
 def compile_coriander(coriander_dir):
     # Run cmake
-    print("Compiling coriander")
     target_paths, source_paths, coriander_build_dir = _get_target_source_dirs(coriander_dir)
+    did_compile = _does_need_to_compile(coriander_dir)
 
     # Found missing files, so compile it.
-    if _does_need_to_compile(coriander_dir):
-        proc = subprocess.run(["python install_distro.py --install-dir " + coriander_build_dir],
+    if did_compile:
+        print("Compiling coriander")
+        proc = subprocess.run(["python2 install_distro.py --install-dir " + coriander_build_dir],
                           cwd = coriander_dir,
                           shell = True,
                           stdout = subprocess.PIPE)
-        assert proc.returncode == 0, "Failed to install"
+        if proc.returncode != 0:
+            list(map(print, str(proc.stdout).split("\n")))
+            exit(proc.returncode)
 
     print("Copying output")
     for src, dest in zip(source_paths, target_paths):
@@ -76,6 +85,9 @@ def compile_coriander(coriander_dir):
 
     print("Monkey patching")
     copyfile(src = "coriander/resources/cocl_env_replace.py", dst = os.path.join(target_resources_dir, "cocl_env.py"))
+    if did_compile:
+        # Re-grab the new package resources.
+        package_filenames = _get_package_resources()
 
 
 def get_and_build_coriander():
@@ -98,7 +110,7 @@ class BuildCommand(build):
 class InstallCommand(install):
     def run(self):
         # Only build if
-        if not os.path.exists(target_resources_dir):
+        if not os.path.exists(target_resources_dir) or len(package_filenames) == 0:
             get_and_build_coriander()
         if not self._called_from_setup(inspect.currentframe()):
             # Run in backward-compatibility mode to support bdist_* commands.
@@ -106,16 +118,17 @@ class InstallCommand(install):
         else:
             install.do_egg_install(self)  # OR: install.do_egg_install(self)
 
-package_filenames = [os.path.join(dp, f).replace("coriander/", "") for dp, dn, filenames in os.walk(target_resources_dir) for f in filenames]
-print("Got {0} Resources".format(len(package_filenames)))
 
+package_filenames = _get_package_resources()
+
+# Requires cmake
 setup(
     name="pycoriander",
     version="0.0.1",
     url='https://github.com/mattpaletta/pycoriander',
     packages=find_packages(),
     include_package_data=True,
-    install_requires=["gitpython"],
+    install_requires=['pyopencl'],
     setup_requires=["gitpython"],
     author="Matthew Paletta",
     author_email="mattpaletta@gmail.com",
