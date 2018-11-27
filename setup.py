@@ -1,5 +1,6 @@
 import inspect
 import os
+import shutil
 import subprocess
 import tempfile
 from distutils.command.build import build
@@ -17,33 +18,42 @@ except ImportError:
 
 
 def _get_package_resources():
-    x = [os.path.join(dp, f).replace("coriander/", "") for dp, dn, filenames in os.walk(target_resources_dir) for f in filenames]
+    x = [os.path.join(dp, f).replace("coriander/", "") for dp, dn, filenames in os.walk(local_resources_dir) for f in filenames]
     print("Got {0} Resources".format(len(x)))
     return x
 
 
-target_resources_dir = os.path.join("coriander/resources/lib")
+local_resources_dir = "coriander/resources"
+target_resources_dir = os.path.expanduser("~/.coriander")
+# target_resources_dir = os.path.join("coriander/resources/lib")
 package_filenames = _get_package_resources()
+print(package_filenames)
 
 
 def _get_target_source_dirs(coriander_dir):
-    coriander_build_dir = os.path.join(coriander_dir, "release")
+    coriander_build_dir = target_resources_dir  # os.path.join(coriander_dir, "release")
+
+    local_bin_dir = os.path.join(local_resources_dir, "bin")
+    if not os.path.exists(local_bin_dir):
+        os.mkdir(local_bin_dir)
 
     target_paths = [
-        os.path.join(target_resources_dir, "bin"),
-        os.path.join(target_resources_dir, "lib"),
-        os.path.join(target_resources_dir, "include"),
-        os.path.join(target_resources_dir, "soft/llvm-4.0"),
-        os.path.join(target_resources_dir, "cmake"),
-        os.path.join(target_resources_dir, "ir-to-opencl")
+        # os.path.join(target_resources_dir, "bin"),
+        # os.path.join(target_resources_dir, "lib"),
+        # os.path.join(target_resources_dir, "include"),
+        # os.path.join(target_resources_dir, "soft/llvm-4.0"),
+        # os.path.join(target_resources_dir, "share", "cocl"),
+        os.path.join(local_resources_dir, "bin", "ir-to-opencl")
     ]
 
-    source_paths = [os.path.join(coriander_build_dir, "bin"),
-                    os.path.join(coriander_build_dir, "lib"),
-                    os.path.join(coriander_build_dir, "include"),
-                    os.path.join(coriander_build_dir, "soft/llvm-4.0"),
-                    os.path.join(coriander_dir, "cmake"),
-                    os.path.join(coriander_dir, "build", "ir-to-opencl")]
+    source_paths = [
+        # os.path.join(coriander_build_dir, "bin"),
+        # os.path.join(coriander_build_dir, "lib"),
+        # os.path.join(coriander_build_dir, "include"),
+        # os.path.join(coriander_build_dir, "soft/llvm-4.0"),
+        # os.path.join(coriander_build_dir, "share", "cocl"),
+        os.path.join(coriander_dir, "build", "ir-to-opencl")
+    ]
 
     return target_paths, source_paths, coriander_build_dir
 
@@ -63,6 +73,9 @@ def compile_coriander(coriander_dir):
     # Found missing files, so compile it.
     if did_compile:
         print("Compiling coriander")
+        if os.path.exists(coriander_build_dir):
+            shutil.rmtree(coriander_build_dir, ignore_errors = True)
+
         proc = subprocess.run(["python2 install_distro.py --install-dir " + coriander_build_dir],
                           cwd = coriander_dir,
                           shell = True,
@@ -70,6 +83,8 @@ def compile_coriander(coriander_dir):
         if proc.returncode != 0:
             list(map(print, str(proc.stdout).split("\n")))
             exit(proc.returncode)
+    else:
+        print("Coriander already compiled, skipping recompile")
 
     print("Copying output")
     for src, dest in zip(source_paths, target_paths):
@@ -85,8 +100,8 @@ def compile_coriander(coriander_dir):
             else:
                 copytree(src = src, dst = dest)
 
-    print("Monkey patching")
-    copyfile(src = "coriander/resources/cocl_env_replace.py", dst = os.path.join(target_resources_dir, "cocl_env.py"))
+    # print("Monkey patching")
+    # copyfile(src = "coriander/resources/cocl_env_replace.py", dst = os.path.join(target_resources_dir, "cocl_env.py"))
 
     global package_filenames
     if did_compile or len(package_filenames) == 0:
@@ -98,10 +113,16 @@ def get_and_build_coriander():
     tmp_repo = os.path.join(tempfile.gettempdir(), "coriander")
     print("Only cloning if needs a compile")
     should_compile = _does_need_to_compile(tmp_repo)
+
     if should_compile and not os.path.exists(tmp_repo):
         print("Cloning repo")
         from git import Repo
-        Repo.clone_from("https://github.com/hughperkins/coriander.git", tmp_repo, recursive = True)
+
+        Repo.clone_from("https://github.com/hughperkins/coriander.git",
+                        to_path = tmp_repo,
+                        recursive = True)
+    else:
+        print("Does not need to re-clone repo")
     compile_coriander(tmp_repo)
 
 

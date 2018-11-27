@@ -4,8 +4,7 @@ import tempfile
 from difflib import SequenceMatcher
 import pyopencl as cl
 
-from coriander.resources.cocl_env_replace import COCL_PATH, COCL_BIN, COCL_LIB, COCL_IR_TO_CL, CLANG_HOME, \
-    COCL_CMAKE_DIR, COCL_INCLUDE
+from coriander.resources.cocl_env_replace import COCL_PATH, COCL_IR_TO_CL
 
 try:
     import pycuda.driver as cuda
@@ -47,40 +46,19 @@ def cu_to_cl(context, cu_filepath, kernelname, num_args):
     return kernel
 
 
-def _get_cocl_path():
-    env = os.environ
-    # export CLANG_HOME=/tmp/coriander/release/soft/llvm-4.0
-    # export COCL_PATH=/tmp/coriander/release/bin/cocl.py
-    # export COCL_CMAKE_DIR=/tmp/coriander/cmake
-    # export COCL_BIN=/tmp/coriander/release/bin
-    # export COCL_LIB=/tmp/coriander/release/lib
-    # export COCL_INCLUDE=/tmp/coriander/release/include
-    # export PYTHON27_PATH=/usr/local/bin/python2
-    env["CLANG_HOME"] = CLANG_HOME
-    env['COCL_PATH'] = COCL_PATH
-    # env['COCL_CMAKE_DIR'] = COCL_CMAKE_DIR
-    env['COCL_BIN'] = COCL_BIN
-    env['COCL_LIB'] = COCL_LIB
-    env['COCL_INCLUDE'] = COCL_INCLUDE
-    return COCL_PATH, env
-
-
 def _cu_to_ll(cu_source_file):
-    cocl_path, env = _get_cocl_path()
-
     new_file, filename = tempfile.mkstemp()
     os.close(new_file)
 
     device_ll = filename + "-device.ll"
 
     _run_process([
-        'python2',
-        cocl_path,
+        COCL_PATH,
         '-c',
         cu_source_file,
         '-o',
         filename
-    ], env = env)
+    ])
 
     with open(device_ll, "r") as f:
         ll_sourcecode = "\n".join(f.readlines())
@@ -91,33 +69,32 @@ def _cu_to_cl(cu_source_file, kernelName, num_clmems):
     assert num_clmems > 0, "Function must accept 1 parameter"
     clmemIndexes = ','.join(map(str, range(num_clmems)))
 
-    cocl_path, env = _get_cocl_path()
-
     new_file, filename = tempfile.mkstemp()
     os.close(new_file)
 
     device_ll = filename + "-device.ll"
     device_cl = filename + "-device.cl"
+    hostpatched_cl = filename + "-hostpatched.ll"
 
     _run_process([
-        'python2',
-        cocl_path,
+        COCL_PATH,
         '-c',
         cu_source_file,
         '-o',
         filename
-    ], env = env)
-
-    _run_process([
-        COCL_IR_TO_CL,
-        '--inputfile', device_ll,
-        '--outputfile', device_cl,
-        '--kernelname', kernelName,
-        '--cmem-indexes', clmemIndexes,
-        '--add_ir_to_cl'
     ])
 
-    with open(device_cl, 'r') as f:
+    # _run_process([
+    #     COCL_IR_TO_CL,
+    #     '--inputfile', device_ll,
+    #     '--outputfile', device_cl,
+    #     '--kernelname', kernelName,
+    #     '--cmem-indexes', clmemIndexes,
+    #     '--add_ir_to_cl'
+    # ])
+
+    # We want to return the host patched version!
+    with open(hostpatched_cl, 'r') as f:
         cl_sourcecode = "\n".join(f.readlines())
     return cl_sourcecode
 
