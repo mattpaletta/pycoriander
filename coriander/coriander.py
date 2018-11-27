@@ -16,6 +16,14 @@ except ImportError:
 # TODO:// If cuda is available, return the cuda kernel, otherwise, compile to opencl and return that.
 
 def cu_to_cl(context, cu_filepath, kernelname, num_args):
+    cl_code, mangledname = cu_to_cl_raw(cu_filepath, kernelname)
+
+    kernel = _build_kernel(context, cl_code, mangledname)
+    print('after build kernel')
+    return kernel
+
+
+def cu_to_cl_raw(cu_filepath, kernelname):
     ll_sourcecode = _cu_to_ll(cu_filepath)
 
     # This is the name of the function in the IR.
@@ -27,7 +35,7 @@ def cu_to_cl(context, cu_filepath, kernelname, num_args):
 
     # TODO:// Get closest name when names are subsets of each other.
     mangled_dist = list(zip(defines, list(
-        map(lambda func: SequenceMatcher(None, func, kernelname, autojunk = False).ratio(), defines))))
+            map(lambda func: SequenceMatcher(None, func, kernelname, autojunk = False).ratio(), defines))))
     mangled_dist.sort(key = lambda x: x[1])
 
     mangledname = mangled_dist[-1][0]  # Grab the minimum one, and from there, grab the name.
@@ -38,12 +46,9 @@ def cu_to_cl(context, cu_filepath, kernelname, num_args):
     print('mangledname', mangledname)
 
     # Count the number of arguments to function...
-    cl_code = _cu_to_cl(cu_filepath, mangledname, num_clmems = num_args)
+    cl_code = _cu_to_cl(cu_filepath, mangledname)
     print('got cl_code')
-
-    kernel = _build_kernel(context, cl_code, mangledname)
-    print('after build kernel')
-    return kernel
+    return cl_code, mangledname
 
 
 def _cu_to_ll(cu_source_file):
@@ -65,9 +70,8 @@ def _cu_to_ll(cu_source_file):
     return ll_sourcecode
 
 
-def _cu_to_cl(cu_source_file, kernelName, num_clmems):
-    assert num_clmems > 0, "Function must accept 1 parameter"
-    clmemIndexes = ','.join(map(str, range(num_clmems)))
+def _cu_to_cl(cu_source_file, kernelName):
+    # clmemIndexes = ','.join(map(str, range(num_clmems)))
 
     new_file, filename = tempfile.mkstemp()
     os.close(new_file)
