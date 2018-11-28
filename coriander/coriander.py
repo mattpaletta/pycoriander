@@ -15,6 +15,11 @@ except ImportError:
 
 # TODO:// If cuda is available, return the cuda kernel, otherwise, compile to opencl and return that.
 
+def cu_to_cl_bin(cu_filepath):
+    filename = _cu_to_ll_file(cu_filepath)
+    return filename + ".o"
+
+
 def cu_to_cl(context, cu_filepath, kernelname, num_args):
     cl_code, mangledname = cu_to_cl_raw(cu_filepath, kernelname)
 
@@ -52,10 +57,18 @@ def cu_to_cl_raw(cu_filepath, kernelname):
 
 
 def _cu_to_ll(cu_source_file):
+    filename = _cu_to_ll_file(cu_source_file)
+    device_ll = filename + "-device.ll"
+
+    with open(device_ll, "r") as f:
+        ll_sourcecode = "\n".join(f.readlines())
+
+    return ll_sourcecode
+
+
+def _cu_to_ll_file(cu_source_file):
     new_file, filename = tempfile.mkstemp()
     os.close(new_file)
-
-    device_ll = filename + "-device.ll"
 
     _run_process([
         COCL_PATH,
@@ -65,9 +78,7 @@ def _cu_to_ll(cu_source_file):
         filename
     ])
 
-    with open(device_ll, "r") as f:
-        ll_sourcecode = "\n".join(f.readlines())
-    return ll_sourcecode
+    return filename
 
 
 def _cu_to_cl(cu_source_file, kernelName):
